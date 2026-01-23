@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Action EA - Trading Logic Diagram</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold text-center mb-8 text-blue-400">Price Action EA - Trading Logic</h1>
+        
+        <!-- Entry Logic Section -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-green-400 border-b border-gray-700 pb-2">📊 Entry Logic Flow</h2>
+            
+            <div class="flex flex-col items-center space-y-4">
+                <!-- New Bar -->
+                <div class="bg-blue-600 rounded-lg px-6 py-3 font-semibold">New Bar Formed</div>
+                <div class="text-2xl">↓</div>
+                
+                <!-- Update S/R -->
+                <div class="bg-gray-700 rounded-lg px-6 py-3">Update Support/Resistance Levels</div>
+                <div class="text-2xl">↓</div>
+                
+                <!-- Filters Grid -->
+                <div class="grid grid-cols-3 gap-4 w-full max-w-3xl">
+                    <div class="bg-yellow-600 rounded-lg p-4 text-center">
+                        <div class="font-semibold">Time Filter</div>
+                        <div class="text-sm mt-1">8:00 - 18:00</div>
+                    </div>
+                    <div class="bg-yellow-600 rounded-lg p-4 text-center">
+                        <div class="font-semibold">Max Trades</div>
+                        <div class="text-sm mt-1">≤ 3 Open</div>
+                    </div>
+                    <div class="bg-yellow-600 rounded-lg p-4 text-center">
+                        <div class="font-semibold">Trend Filter</div>
+                        <div class="text-sm mt-1">EMA 20/50</div>
+                    </div>
+                </div>
+                <div class="text-2xl">↓</div>
+                
+                <!-- Pattern Detection -->
+                <div class="bg-purple-600 rounded-lg px-6 py-4 w-full max-w-3xl">
+                    <div class="font-semibold text-center mb-3">Pattern Detection (Completed Bar)</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div class="bg-purple-800 rounded p-2 text-center">Engulfing</div>
+                        <div class="bg-purple-800 rounded p-2 text-center">Pin Bar</div>
+                        <div class="bg-purple-800 rounded p-2 text-center">Morning Star</div>
+                        <div class="bg-purple-800 rounded p-2 text-center">Inside Bar</div>
+                    </div>
+                </div>
+                <div class="text-2xl">↓</div>
+                
+                <!-- S/R Check -->
+                <div class="grid grid-cols-2 gap-8 w-full max-w-3xl">
+                    <div class="bg-green-700 rounded-lg p-4 text-center">
+                        <div class="font-semibold">🟢 BUY Signal</div>
+                        <div class="text-sm mt-2">Bullish Pattern</div>
+                        <div class="text-sm">+ Near Support</div>
+                        <div class="text-sm">+ Uptrend/Neutral</div>
+                    </div>
+                    <div class="bg-red-700 rounded-lg p-4 text-center">
+                        <div class="font-semibold">🔴 SELL Signal</div>
+                        <div class="text-sm mt-2">Bearish Pattern</div>
+                        <div class="text-sm">+ Near Resistance</div>
+                        <div class="text-sm">+ Downtrend/Neutral</div>
+                    </div>
+                </div>
+                <div class="text-2xl">↓</div>
+                
+                <!-- Execute Trade -->
+                <div class="bg-blue-500 rounded-lg px-6 py-3 font-semibold">Execute Trade with 0.5% Risk</div>
+            </div>
+        </div>
+        
+        <!-- Trade Management Section -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-orange-400 border-b border-gray-700 pb-2">⚙️ Trade Management Flow</h2>
+            
+            <div class="bg-gray-800 rounded-xl p-6">
+                <div class="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0 md:space-x-4">
+                    <!-- Entry -->
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center mx-auto mb-2">
+                            <span class="font-bold">ENTRY</span>
+                        </div>
+                        <div class="text-sm text-gray-400">Full Position</div>
+                        <div class="text-sm text-gray-400">SL: Pattern Low/High</div>
+                    </div>
+                    
+                    <div class="text-2xl hidden md:block">→</div>
+                    <div class="text-2xl md:hidden">↓</div>
+                    
+                    <!-- 1R -->
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full bg-green-600 flex items-center justify-center mx-auto mb-2">
+                            <span class="font-bold">1R</span>
+                        </div>
+                        <div class="text-sm text-gray-400">Close 50%</div>
+                        <div class="text-sm text-gray-400">SL → Breakeven</div>
+                    </div>
+                    
+                    <div class="text-2xl hidden md:block">→</div>
+                    <div class="text-2xl md:hidden">↓</div>
+                    
+                    <!-- 2R -->
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-2">
+                            <span class="font-bold">2R</span>
+                        </div>
+                        <div class="text-sm text-gray-400">Trail SL to 1R</div>
+                        <div class="text-sm text-gray-400">Let it run</div>
+                    </div>
+                    
+                    <div class="text-2xl hidden md:block">→</div>
+                    <div class="text-2xl md:hidden">↓</div>
+                    
+                    <!-- 3R -->
+                    <div class="text-center">
+                        <div class="w-24 h-24 rounded-full bg-green-400 flex items-center justify-center mx-auto mb-2">
+                            <span class="font-bold">3R+</span>
+                        </div>
+                        <div class="text-sm text-gray-400">Trail SL to 2R</div>
+                        <div class="text-sm text-gray-400">Continue...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Risk Management Summary -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-red-400 border-b border-gray-700 pb-2">🛡️ Risk Management</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-gray-800 rounded-xl p-6 text-center">
+                    <div class="text-4xl mb-3">0.5%</div>
+                    <div class="text-gray-400">Risk Per Trade</div>
+                    <div class="text-sm text-gray-500 mt-2">Based on account balance</div>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 text-center">
+                    <div class="text-4xl mb-3">3</div>
+                    <div class="text-gray-400">Max Open Trades</div>
+                    <div class="text-sm text-gray-500 mt-2">Total exposure: 1.5% max</div>
+                </div>
+                <div class="bg-gray-800 rounded-xl p-6 text-center">
+                    <div class="text-4xl mb-3">1:2</div>
+                    <div class="text-gray-400">Risk:Reward Target</div>
+                    <div class="text-sm text-gray-500 mt-2">With partial profits at 1R</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pattern Examples -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-semibold mb-6 text-purple-400 border-b border-gray-700 pb-2">🎯 Pattern Examples</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Bullish Engulfing -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h3 class="font-semibold text-green-400 mb-4">Bullish Engulfing</h3>
+                    <div class="flex items-end space-x-2 h-32 mb-4">
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-8 bg-gray-400"></div>
+                            <div class="w-6 h-16 bg-red-500 rounded"></div>
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                            <div class="w-8 h-24 bg-green-500 rounded"></div>
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        Green candle completely engulfs previous red candle body
+                    </div>
+                </div>
+                
+                <!-- Bullish Pin Bar -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h3 class="font-semibold text-green-400 mb-4">Bullish Pin Bar</h3>
+                    <div class="flex items-end justify-center h-32 mb-4">
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-6 bg-gray-400"></div>
+                            <div class="w-6 h-8 bg-green-500 rounded"></div>
+                            <div class="w-1 h-24 bg-gray-400"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        Long lower wick (2x+ body), small body at top of candle
+                    </div>
+                </div>
+                
+                <!-- Morning Star -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h3 class="font-semibold text-green-400 mb-4">Morning Star</h3>
+                    <div class="flex items-end space-x-2 h-32 mb-4">
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                            <div class="w-6 h-20 bg-red-500 rounded"></div>
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                        </div>
+                        <div class="flex flex-col items-center mt-16">
+                            <div class="w-1 h-3 bg-gray-400"></div>
+                            <div class="w-4 h-4 bg-gray-500 rounded"></div>
+                            <div class="w-1 h-3 bg-gray-400"></div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                            <div class="w-6 h-16 bg-green-500 rounded"></div>
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        3-candle reversal: Bearish → Small doji → Bullish
+                    </div>
+                </div>
+                
+                <!-- Inside Bar -->
+                <div class="bg-gray-800 rounded-xl p-6">
+                    <h3 class="font-semibold text-green-400 mb-4">Inside Bar (Bullish)</h3>
+                    <div class="flex items-end space-x-2 h-32 mb-4">
+                        <div class="flex flex-col items-center">
+                            <div class="w-1 h-8 bg-gray-400"></div>
+                            <div class="w-8 h-20 bg-gray-600 rounded border-2 border-gray-400"></div>
+                            <div class="w-1 h-8 bg-gray-400"></div>
+                        </div>
+                        <div class="flex flex-col items-center mt-8">
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                            <div class="w-6 h-12 bg-green-500 rounded"></div>
+                            <div class="w-1 h-4 bg-gray-400"></div>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-400">
+                        Current candle completely inside previous candle's range
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Start -->
+        <div class="bg-gray-800 rounded-xl p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-400">🚀 Quick Start</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-300">
+                <li>Copy <code class="bg-gray-700 px-2 py-1 rounded">PriceActionEA.mq5</code> to <code class="bg-gray-700 px-2 py-1 rounded">MT5/MQL5/Experts/</code></li>
+                <li>Compile in MetaEditor (F7)</li>
+                <li>Open M15 chart of your preferred pair</li>
+                <li>Drag EA to chart and configure settings</li>
+                <li>Enable AutoTrading and let it run!</li>
+            </ol>
+        </div>
+        
+        <div class="text-center text-gray-500 mt-8 text-sm">
+            Price Action EA v1.0 | Trading involves substantial risk of loss
+        </div>
+    </div>
+</body>
+</html>

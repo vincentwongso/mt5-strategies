@@ -1,0 +1,43 @@
+; Price Action EA Default Settings
+; Optimized for M15 timeframe on major forex pairs
+; Date: 2026-01
+
+; === Risk Management ===
+RiskPercent=0.5
+MaxOpenTrades=3
+RiskRewardRatio=2.0
+
+; === Trade Management ===
+FirstTPMultiplier=1.0
+PartialClosePercent=50.0
+TrailingStopR=1.0
+
+; === Pattern Settings ===
+UseEngulfing=true
+UsePinBar=true
+UseMorningStar=true
+UseInsideBar=true
+PinBarRatio=2.0
+EngulfingMinRatio=1.2
+
+; === Support/Resistance Settings ===
+SwingLookback=20
+SwingStrength=3
+SRZoneATRMultiple=0.5
+MinTouchesForSR=2
+
+; === Trend Filter ===
+UseTrendFilter=true
+TrendEMAPeriod=50
+FastEMAPeriod=20
+
+; === Time Filter ===
+UseTimeFilter=true
+StartHour=8
+EndHour=18
+TradeFriday=true
+
+; === General Settings ===
+MagicNumber=123456
+Slippage=10
+TradeComment=PA_EA
