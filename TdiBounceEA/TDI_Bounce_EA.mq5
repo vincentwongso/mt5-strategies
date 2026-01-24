@@ -18,20 +18,17 @@
 input group "=== Trading Settings ==="
 input bool     TradeEURUSD            = true;        // Trade EURUSD
 input bool     TradeGBPUSD            = true;        // Trade GBPUSD
-input double   RiskPercent            = 2.0;         // Risk Percentage per Trade
+input double   RiskPercent            = 1.0;         // Risk Percentage per Trade
 input double   StopLossPips           = 20.0;        // Stop Loss in Pips
 input double   TakeProfitPips         = 20.0;        // Take Profit in Pips (0 = use TDI exit)
 input double   BreakevenPips          = 12.0;        // Move SL to BE after X pips
 input ulong    MagicNumber            = 123456;      // Magic Number
 
-// Session Filter
+// Session Filter (GMT-based with offset)
 input group "=== Session Settings ==="
-input bool     TradeLondonSession     = true;        // Trade London Session
-input bool     TradeNewYorkSession    = true;        // Trade New York Session
-input int      LondonStartHour        = 8;           // London Session Start (Server Time)
-input int      LondonEndHour          = 12;          // London Session End
-input int      NewYorkStartHour       = 13;          // NY Session Start (Server Time)
-input int      NewYorkEndHour         = 17;          // NY Session End
+input int      ServerGMTOffset        = 2;           // Server GMT Offset (e.g., 2 for GMT+2)
+input int      TradingStartHourGMT    = 8;           // Trading Start Hour (GMT) - London Open
+input int      TradingEndHourGMT      = 17;          // Trading End Hour (GMT) - NY Afternoon
 
 // EMA Parameters
 input group "=== EMA Settings ==="
@@ -139,6 +136,8 @@ int OnInit()
    
    Print("TDI Bounce EA Initialized on ", _Symbol, " ", EnumToString(Period()));
    Print("Point: ", g_point, " Digits: ", g_digits);
+   Print("Trading Hours: ", TradingStartHourGMT, ":00 - ", TradingEndHourGMT, ":00 GMT (Server GMT+", ServerGMTOffset, ")");
+   Print("Server Trading Hours: ", TradingStartHourGMT + ServerGMTOffset, ":00 - ", TradingEndHourGMT + ServerGMTOffset, ":00 Server Time");
    
    return(INIT_SUCCEEDED);
 }
@@ -350,23 +349,44 @@ bool IsValidSymbol()
 }
 
 //+------------------------------------------------------------------+
+//| Convert Server Time to GMT                                       |
+//+------------------------------------------------------------------+
+int GetCurrentGMTHour()
+{
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   int serverHour = dt.hour;
+   
+   // Convert server hour to GMT (subtract the offset)
+   int gmtHour = serverHour - ServerGMTOffset;
+   
+   // Handle wrap-around for negative hours
+   if(gmtHour < 0)
+      gmtHour += 24;
+   else if(gmtHour >= 24)
+      gmtHour -= 24;
+   
+   return gmtHour;
+}
+
+//+------------------------------------------------------------------+
 //| Check if current time is within valid trading session            |
 //+------------------------------------------------------------------+
 bool IsValidSession()
 {
-   MqlDateTime dt;
-   TimeToStruct(TimeCurrent(), dt);
-   int hour = dt.hour;
+   int gmtHour = GetCurrentGMTHour();
    
-   // London Session
-   if(TradeLondonSession && hour >= LondonStartHour && hour < LondonEndHour)
-      return true;
-   
-   // New York Session
-   if(TradeNewYorkSession && hour >= NewYorkStartHour && hour < NewYorkEndHour)
-      return true;
-   
-   return false;
+   // Single combined session: London Open to NY Afternoon (GMT)
+   // Handle normal case (start < end)
+   if(TradingStartHourGMT < TradingEndHourGMT)
+   {
+      return (gmtHour >= TradingStartHourGMT && gmtHour < TradingEndHourGMT);
+   }
+   // Handle overnight session (start > end, e.g., 22:00-06:00)
+   else
+   {
+      return (gmtHour >= TradingStartHourGMT || gmtHour < TradingEndHourGMT);
+   }
 }
 
 //+------------------------------------------------------------------+
@@ -588,20 +608,18 @@ void SendTradeNotification(string orderType, double price, double sl, double tp,
 //+------------------------------------------------------------------+
 //| Display Information on Chart                                     |
 //+------------------------------------------------------------------+
-void DisplayInfo(double price, double ema10, double ema200, double ema800, 
+void DisplayInfo(double price, double ema10, double ema200, double ema800,
                  double green, double red, double yellow, double distance)
 {
+   int gmtHour = GetCurrentGMTHour();
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   int serverHour = dt.hour;
+   
    string session = "Inactive";
    if(IsValidSession())
    {
-      MqlDateTime dt;
-      TimeToStruct(TimeCurrent(), dt);
-      int hour = dt.hour;
-      
-      if(TradeLondonSession && hour >= LondonStartHour && hour < LondonEndHour)
-         session = "London";
-      else if(TradeNewYorkSession && hour >= NewYorkStartHour && hour < NewYorkEndHour)
-         session = "New York";
+      session = StringFormat("Active (%02d:00-%02d:00 GMT)", TradingStartHourGMT, TradingEndHourGMT);
    }
    
    string pricePos = (price > ema200) ? "ABOVE" : "BELOW";
@@ -610,6 +628,8 @@ void DisplayInfo(double price, double ema10, double ema200, double ema800,
    string info = StringFormat(
       "=== TDI Bounce EA (MT5) ===\n" +
       "Symbol: %s | TF: %s\n" +
+      "Server Time: %02d:00 (GMT+%d)\n" +
+      "GMT Time: %02d:00\n" +
       "Session: %s\n" +
       "-------------------\n" +
       "Price: %.5f\n" +
@@ -626,6 +646,8 @@ void DisplayInfo(double price, double ema10, double ema200, double ema800,
       "-------------------\n" +
       "Open Positions: %d",
       _Symbol, EnumToString(Period()),
+      serverHour, ServerGMTOffset,
+      gmtHour,
       session,
       price, ema10, ema200, ema800,
       distance, pricePos,
