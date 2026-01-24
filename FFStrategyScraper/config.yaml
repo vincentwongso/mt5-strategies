@@ -1,0 +1,18 @@
+scraper:
+  base_url: "https://www.forexfactory.com"
+  forum_path: "/forum/71-trading-systems"
+  min_delay_seconds: 2
+  max_delay_seconds: 5
+  user_agent: "Mozilla/5.0 (compatible; SRB/1.0)"
+
+filters:
+  min_replies: 2000
+  max_inactive_days: 90
+
+output:
+  strategies_dir: "./strategies"
+  database_path: "./scraper.db"
+
+logging:
+  level: "info"
+  file: "./scraper.log"

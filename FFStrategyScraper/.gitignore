@@ -1,0 +1,38 @@
+# Binaries
+scraper
+scraper.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Output directories and files
+strategies/
+scraper.db
+scraper.db-shm
+scraper.db-wal
+*.log
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
