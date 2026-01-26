@@ -22,6 +22,11 @@ type ScraperConfig struct {
 	MinDelaySeconds  int    `yaml:"min_delay_seconds"`
 	MaxDelaySeconds  int    `yaml:"max_delay_seconds"`
 	UserAgent        string `yaml:"user_agent"`
+	UseBrowser       bool   `yaml:"use_browser"`        // Use browser for JavaScript rendering
+	BrowserHeadless  bool   `yaml:"browser_headless"`   // Run browser in headless mode
+	BrowserTimeout   int    `yaml:"browser_timeout"`    // Browser timeout in seconds
+	WaitSelector     string `yaml:"wait_selector"`      // CSS selector to wait for before scraping
+	WaitTimeout      int    `yaml:"wait_timeout"`       // Wait timeout in seconds
 }
 
 // FilterConfig contains filtering criteria for strategies
@@ -91,6 +96,16 @@ func (c *Config) setDefaults() error {
 	}
 	if c.Scraper.UserAgent == "" {
 		c.Scraper.UserAgent = "Mozilla/5.0 (compatible; StrategyResearchBot/1.0)"
+	}
+	// Browser defaults
+	if c.Scraper.BrowserTimeout == 0 {
+		c.Scraper.BrowserTimeout = 30
+	}
+	if c.Scraper.WaitTimeout == 0 {
+		c.Scraper.WaitTimeout = 10
+	}
+	if c.Scraper.WaitSelector == "" {
+		c.Scraper.WaitSelector = "table#threadslist tbody tr"
 	}
 
 	// Filter defaults

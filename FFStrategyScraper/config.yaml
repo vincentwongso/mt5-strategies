@@ -1,9 +1,14 @@
 scraper:
   base_url: "https://www.forexfactory.com"
-  forum_path: "/forum/71-trading-systems"
+  forum_path: "/forum/71-trading-systems?order=desc&sort=replycount"
   min_delay_seconds: 2
   max_delay_seconds: 5
   user_agent: "Mozilla/5.0 (compatible; SRB/1.0)"
+  use_browser: true
+  browser_headless: true
+  browser_timeout: 30
+  wait_selector: "table#threadslist tbody tr"
+  wait_timeout: 10
 
 filters:
   min_replies: 2000
