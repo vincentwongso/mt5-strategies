@@ -51,7 +51,7 @@ Default criteria (configurable):
 ### Prerequisites
 
 1. **Windows VPS** with MetaTrader 5 installed
-2. **Python 3.10+**
+2. **Python 3.14+**
 3. **Anthropic API key** for Claude
 
 ### Setup
