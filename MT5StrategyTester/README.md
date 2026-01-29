@@ -73,8 +73,11 @@ uv venv --python 3.13.11
 # Install dependencies using uv
 uv pip install -r requirements.txt
 
-# Set environment variable
+# Set environment variable (or use .env)
 set ANTHROPIC_API_KEY=your-api-key-here
+
+# Or create a .env file (copy from .env.example)
+copy .env.example .env
 ```
 
 **Note**: If you prefer to use pip instead of uv, you can install Python 3.13 manually and use:
@@ -86,14 +89,13 @@ pip install -r requirements.txt
 
 ### Configuration
 
-Edit `config.py` to set your MT5 paths:
+Edit `config.yaml` to set your MT5 paths and defaults:
 
-```python
-@dataclass
-class MT5Config:
-    mt5_path: Path = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe")
-    metaeditor_path: Path = Path(r"C:\Program Files\MetaTrader 5\metaeditor64.exe")
-    terminal_id: str = "YOUR_TERMINAL_ID"  # Found in MT5 Help > About
+```yaml
+mt5:
+  mt5_path: "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+  metaeditor_path: "C:\\Program Files\\MetaTrader 5\\metaeditor64.exe"
+  terminal_id: "YOUR_TERMINAL_ID"  # Found in MT5 Help > About
 ```
 
 To find your terminal_id:
@@ -109,6 +111,9 @@ To find your terminal_id:
 # Test all strategies in ./strategies folder
 python main.py
 
+# Test all MQ5s under a specific strategy subfolder
+python main.py --strategy-folder LondonBreakoutEA
+
 # Test with custom parameters
 python main.py --symbol GBPUSD --timeframe M15 --from-date 2024.01.01 --to-date 2024.06.30
 
@@ -123,6 +128,7 @@ python main.py --mock
 
 ```
 --strategies, -s    Path to strategies folder (default: ./strategies)
+--strategy-folder   Strategy subfolder name under --strategies (e.g., LondonBreakoutEA)
 --symbol           Trading symbol (default: EURUSD)
 --timeframe        Timeframe: M1,M5,M15,M30,H1,H4,D1 (default: H1)
 --from-date        Backtest start date (default: 2024.01.01)
@@ -138,11 +144,11 @@ python main.py --mock
 ### Programmatic Usage
 
 ```python
-from config import AppConfig
+from config_loader import load_config
 from main import StrategyTesterOrchestrator
 
-# Configure
-config = AppConfig()
+# Load configuration from config.yaml
+config = load_config()
 config.backtest.symbol = "EURUSD"
 config.backtest.period = "H1"
 config.optimization.max_iterations = 3
@@ -163,7 +169,7 @@ for session in sessions:
 
 ### CSV Results
 
-Results are saved to `./results/backtest_results.csv`:
+Results are saved per strategy under `./strategies/<StrategyName>/results/backtest_results.csv`:
 
 | Field | Description |
 |-------|-------------|
@@ -178,7 +184,7 @@ Results are saved to `./results/backtest_results.csv`:
 
 ### Session Logs
 
-Detailed logs saved in `./results/sessions/{strategy_name}/`:
+Detailed logs saved in `./strategies/<StrategyName>/results/sessions/{strategy_name}/`:
 - `iteration_N_code.mq5` - Code version for each iteration
 - `iteration_N_analysis.txt` - LLM analysis and modifications
 
@@ -252,14 +258,13 @@ python main.py --mock  # Test without MT5 first
 
 ### Adding New Criteria
 
-Edit `config.py`:
+Edit `config.yaml`:
 
-```python
-@dataclass 
-class SuccessCriteria:
-    min_monthly_profit_pct: float = 3.0
-    # Add your criteria here
-    min_sharpe_ratio: float = 1.0
+```yaml
+success:
+  min_monthly_profit_pct: 3.0
+  # Add your criteria here
+  min_sharpe_ratio: 1.0
 ```
 
 ### Custom Agents

@@ -16,6 +16,8 @@ from datetime import datetime
 from typing import Optional, List
 import glob
 
+from dotenv import load_dotenv
+
 from config_loader import AppConfig, MT5Config, BacktestConfig, SuccessCriteria, OptimizationConfig, load_config
 from models import (
     StrategyQueue, StrategyTestingSession, StrategyIteration,
@@ -63,15 +65,39 @@ class StrategyTesterOrchestrator:
             Number of strategies loaded
         """
         folder = folder or self.config.optimization.strategies_folder
+        folder = Path(folder)
         
-        # Find all .mq5 files
-        mq5_files = list(folder.glob("*.mq5"))
+        # Find all .mq5 files (recursive)
+        mq5_files = [
+            path for path in folder.rglob("*.mq5")
+            if "modified" not in path.parts
+        ]
         
         for mq5_file in mq5_files:
             self.queue.add_strategy(str(mq5_file))
         
         print(f"📂 Loaded {len(mq5_files)} strategies from {folder}")
         return len(mq5_files)
+
+    def _get_strategy_root(self, mq5_file: Path) -> Path:
+        """
+        Resolve strategy root directory (parent folder of MQ5 file).
+        """
+        return mq5_file.parent
+
+    def _configure_strategy_outputs(self, strategy_root: Path):
+        """
+        Configure per-strategy output folders for results and modified files.
+        """
+        results_dir = strategy_root / "results"
+        modified_dir = strategy_root / "modified"
+        results_csv = results_dir / "backtest_results.csv"
+
+        self.config.optimization.results_csv = results_csv
+        self.config.optimization.modified_strategies_folder = modified_dir
+
+        self.results_logger = ResultsLogger(results_csv)
+        self.session_logger = SessionLogger(results_dir / "sessions")
     
     def check_criteria(self, result: BacktestResult) -> tuple[bool, List[str]]:
         """
@@ -214,6 +240,8 @@ class StrategyTesterOrchestrator:
             StrategyTestingSession with results
         """
         mq5_file = Path(strategy_path)
+        strategy_root = self._get_strategy_root(mq5_file)
+        self._configure_strategy_outputs(strategy_root)
         
         # Create session
         session = StrategyTestingSession(
@@ -380,6 +408,7 @@ class StrategyTesterOrchestrator:
 
 
 def main():
+    load_dotenv()
     """Main entry point"""
     parser = argparse.ArgumentParser(
         description="MT5 Strategy Tester with AI-powered optimization"
@@ -389,6 +418,11 @@ def main():
         type=str,
         default="./strategies",
         help="Path to strategies folder"
+    )
+    parser.add_argument(
+        "--strategy-folder",
+        type=str,
+        help="Test a specific strategy subfolder under --strategies"
     )
     parser.add_argument(
         "--symbol",
@@ -455,7 +489,11 @@ def main():
     config = load_config()
     
     # Update paths
-    config.optimization.strategies_folder = Path(args.strategies)
+    base_strategies = Path(args.strategies)
+    if args.strategy_folder:
+        config.optimization.strategies_folder = base_strategies / args.strategy_folder
+    else:
+        config.optimization.strategies_folder = base_strategies
     config.mt5.mt5_path = Path(args.mt5_path)
     if args.terminal_id:
         config.mt5.terminal_id = args.terminal_id

@@ -12,14 +12,14 @@ mt5:
 
 # Backtest parameters
 backtest:
-  symbol: "EURUSD"
-  period: "H1"  # M1, M5, M15, M30, H1, H4, D1, W1, MN
-  from_date: "2024.01.01"
-  to_date: "2024.12.31"
+  symbol: "GBPUSD"
+  period: "M15"  # M1, M5, M15, M30, H1, H4, D1, W1, MN
+  from_date: "2025.01.01"
+  to_date: "2025.12.31"
   deposit: 100000.0
   currency: "USD"
   leverage: 100
-  model: 1  # 0=Every tick, 1=1 minute OHLC, 2=Open prices only, 3=Math calculations, 4=Every tick based on real ticks
+  model: 4  # 0=Every tick, 1=1 minute OHLC, 2=Open prices only, 3=Math calculations, 4=Every tick based on real ticks
   optimization: 0  # 0=Disabled, 1=Slow complete, 2=Fast genetic
   visual: false
 
@@ -43,6 +43,6 @@ optimization:
 # CrewAI agent settings
 crewai:
   anthropic_api_key: ""  # Set via environment variable ANTHROPIC_API_KEY
-  model: "claude-sonnet-4-20250514"
+  model: "claude-sonnet-4-5-20250929"
   temperature: 0.3
-  max_tokens: 8000
+  max_tokens: 16000
