@@ -16,7 +16,7 @@ import shutil
 import time
 import re
 
-from config import MT5Config, BacktestConfig, AppConfig
+from config_loader import MT5Config, BacktestConfig, AppConfig, load_config
 from models import (
     BacktestResult, PerformanceMetrics, TradeStats, 
     DrawdownStats

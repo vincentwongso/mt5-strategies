@@ -1,0 +1,48 @@
+# MT5 Strategy Tester Configuration
+
+# MetaTrader 5 paths and settings
+mt5:
+  mt5_path: "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+  metaeditor_path: "C:\\Program Files\\MetaTrader 5\\metaeditor64.exe"
+  experts_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\MQL5\\Experts"
+  reports_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\reports"
+  tester_ini_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\tester"
+  # You'll need to set this for your specific installation
+  terminal_id: "D0E8209F77C8CF37AD8BF550E51FF075"  # Found in MT5 data folder
+
+# Backtest parameters
+backtest:
+  symbol: "EURUSD"
+  period: "H1"  # M1, M5, M15, M30, H1, H4, D1, W1, MN
+  from_date: "2024.01.01"
+  to_date: "2024.12.31"
+  deposit: 100000.0
+  currency: "USD"
+  leverage: 100
+  model: 1  # 0=Every tick, 1=1 minute OHLC, 2=Open prices only, 3=Math calculations, 4=Every tick based on real ticks
+  optimization: 0  # 0=Disabled, 1=Slow complete, 2=Fast genetic
+  visual: false
+
+# Criteria to determine if a strategy is profitable
+success:
+  min_monthly_profit_pct: 3.0  # Minimum 3% per month
+  max_monthly_profit_pct: 5.0  # Target 5% per month
+  max_daily_drawdown_pct: 3.0  # Max 3% daily drawdown
+  max_total_drawdown_pct: 10.0  # Max 10% total drawdown
+  min_profit_factor: 1.5  # Minimum profit factor
+  min_trades: 30  # Minimum trades for statistical significance
+  min_win_rate: 40.0  # Minimum win rate percentage
+
+# Optimization loop settings
+optimization:
+  max_iterations: 3
+  strategies_folder: "./strategies"
+  results_csv: "./results/backtest_results.csv"
+  modified_strategies_folder: "./strategies/modified"
+
+# CrewAI agent settings
+crewai:
+  anthropic_api_key: ""  # Set via environment variable ANTHROPIC_API_KEY
+  model: "claude-sonnet-4-20250514"
+  temperature: 0.3
+  max_tokens: 8000

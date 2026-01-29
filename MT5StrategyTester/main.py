@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Optional, List
 import glob
 
-from config import AppConfig, MT5Config, BacktestConfig, SuccessCriteria, OptimizationConfig
+from config_loader import AppConfig, MT5Config, BacktestConfig, SuccessCriteria, OptimizationConfig, load_config
 from models import (
     StrategyQueue, StrategyTestingSession, StrategyIteration,
     StrategyStatus, BacktestResult, LLMAnalysis
@@ -451,8 +451,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Build configuration
-    config = AppConfig()
+    # Build configuration from YAML file
+    config = load_config()
     
     # Update paths
     config.optimization.strategies_folder = Path(args.strategies)

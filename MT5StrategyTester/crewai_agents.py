@@ -14,7 +14,7 @@ from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
 from langchain_anthropic import ChatAnthropic
 
-from config import AppConfig, SuccessCriteria
+from config_loader import AppConfig, SuccessCriteria, load_config
 from models import (
     BacktestResult, LLMAnalysis, CodeModification, 
     OptimizationAction, StrategyIteration

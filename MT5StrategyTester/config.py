@@ -15,7 +15,7 @@ class MT5Config:
     tester_ini_path: Path = Path(r"C:\Users\{username}\AppData\Roaming\MetaQuotes\Terminal\{terminal_id}\tester")
     
     # You'll need to set these for your specific installation
-    terminal_id: str = "YOUR_TERMINAL_ID"  # Found in MT5 data folder
+    terminal_id: str = "D0E8209F77C8CF37AD8BF550E51FF075"  # Found in MT5 data folder
     
     def resolve_paths(self, username: str):
         """Resolve paths with actual username"""

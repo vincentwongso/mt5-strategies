@@ -51,24 +51,37 @@ Default criteria (configurable):
 ### Prerequisites
 
 1. **Windows VPS** with MetaTrader 5 installed
-2. **Python 3.14+**
-3. **Anthropic API key** for Claude
+2. **Python 3.13** (crewai doesn't support Python 3.14 yet)
+3. **uv** - Modern Python package manager (recommended)
+4. **Anthropic API key** for Claude
 
 ### Setup
 
 ```bash
 # Clone/copy files to your VPS
-cd mt5_strategy_tester
+cd MT5StrategyTester
 
-# Create virtual environment
-python -m venv venv
-venv\Scripts\activate
+# Install uv (if not already installed)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Install dependencies
-pip install -r requirements.txt
+# Create virtual environment with Python 3.13
+uv venv --python 3.13.11
+
+# Activate virtual environment
+.venv\Scripts\activate
+
+# Install dependencies using uv
+uv pip install -r requirements.txt
 
 # Set environment variable
 set ANTHROPIC_API_KEY=your-api-key-here
+```
+
+**Note**: If you prefer to use pip instead of uv, you can install Python 3.13 manually and use:
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
 ### Configuration
@@ -208,19 +221,25 @@ mt5_strategy_tester/
 
 ### Common Issues
 
-1. **Compilation fails**
-   - Check MetaEditor path in config
-   - Ensure MQ5 file has no syntax errors
-   - Look at `.log` file in Experts folder
+1. **Python version compatibility**
+    - crewai requires Python 3.13 or earlier (not 3.14)
+    - Use `uv venv --python 3.13.11` to create a compatible environment
+    - If using pip, install Python 3.13 manually
 
-2. **Backtest doesn't start**
-   - Verify terminal_id is correct
-   - Check MT5 is not already running
-   - Ensure symbol data is downloaded
+2. **Compilation fails**
+    - Check MetaEditor path in config
+    - Ensure MQ5 file has no syntax errors
+    - Look at `.log` file in Experts folder
 
-3. **CrewAI errors**
-   - Verify ANTHROPIC_API_KEY is set
-   - Check API quota and limits
+3. **Backtest doesn't start**
+    - Verify terminal_id is correct
+    - Check MT5 is not already running
+    - Ensure symbol data is downloaded
+
+4. **CrewAI errors**
+    - Verify ANTHROPIC_API_KEY is set
+    - Check API quota and limits
+    - Ensure Python version is 3.13 or earlier
 
 ### Debug Mode
 

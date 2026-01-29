@@ -1,8 +1,8 @@
 # MT5 Strategy Tester Dependencies
 
 # CrewAI for agent orchestration
-crewai>=0.80.0
-crewai-tools>=0.14.0
+crewai>=0.11.0
+crewai-tools>=0.0.1
 
 # Anthropic for Claude API
 langchain-anthropic>=0.3.0
@@ -10,6 +10,9 @@ anthropic>=0.40.0
 
 # Utilities
 python-dotenv>=1.0.0
+pyyaml>=6.0
 
 # Note: MetaTrader5 package is Windows-only
 # Install on Windows VPS: pip install MetaTrader5
+# MT5
+MetaTrader5>=5.0.45
