@@ -255,11 +255,3 @@ self.new_agent = Agent(
     llm=self.llm
 )
 ```
-
-## License
-
-MIT License - Use freely for your trading systems.
-
-## Disclaimer
-
-This tool is for educational and research purposes. Backtesting results do not guarantee future performance. Always test thoroughly on demo accounts before live trading.
