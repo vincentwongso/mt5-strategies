@@ -420,6 +420,12 @@ def main():
         help="Path to strategies folder"
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default="",
+        help="Path to config.yaml (default: MT5StrategyTester/config.yaml)"
+    )
+    parser.add_argument(
         "--strategy-folder",
         type=str,
         help="Test a specific strategy subfolder under --strategies"
@@ -427,32 +433,32 @@ def main():
     parser.add_argument(
         "--symbol",
         type=str,
-        default="EURUSD",
-        help="Trading symbol (default: EURUSD)"
+        default=None,
+        help="Trading symbol (overrides config.yaml)"
     )
     parser.add_argument(
         "--timeframe",
         type=str,
-        default="H1",
-        help="Timeframe (default: H1)"
+        default=None,
+        help="Timeframe (overrides config.yaml)"
     )
     parser.add_argument(
         "--from-date",
         type=str,
-        default="2024.01.01",
-        help="Backtest start date (default: 2024.01.01)"
+        default=None,
+        help="Backtest start date (overrides config.yaml)"
     )
     parser.add_argument(
         "--to-date",
         type=str,
-        default="2024.12.31",
-        help="Backtest end date (default: 2024.12.31)"
+        default=None,
+        help="Backtest end date (overrides config.yaml)"
     )
     parser.add_argument(
         "--deposit",
         type=float,
-        default=100000,
-        help="Initial deposit (default: 100000)"
+        default=None,
+        help="Initial deposit (overrides config.yaml)"
     )
     parser.add_argument(
         "--max-iterations",
@@ -486,7 +492,8 @@ def main():
     args = parser.parse_args()
     
     # Build configuration from YAML file
-    config = load_config()
+    config_path = Path(args.config) if args.config else None
+    config = load_config(config_path)
     
     # Update paths
     base_strategies = Path(args.strategies)
@@ -498,12 +505,17 @@ def main():
     if args.terminal_id:
         config.mt5.terminal_id = args.terminal_id
     
-    # Update backtest params
-    config.backtest.symbol = args.symbol
-    config.backtest.period = args.timeframe
-    config.backtest.from_date = args.from_date
-    config.backtest.to_date = args.to_date
-    config.backtest.deposit = args.deposit
+    # Update backtest params (only when provided)
+    if args.symbol is not None:
+        config.backtest.symbol = args.symbol
+    if args.timeframe is not None:
+        config.backtest.period = args.timeframe
+    if args.from_date is not None:
+        config.backtest.from_date = args.from_date
+    if args.to_date is not None:
+        config.backtest.to_date = args.to_date
+    if args.deposit is not None:
+        config.backtest.deposit = args.deposit
     
     # Update optimization params
     config.optimization.max_iterations = args.max_iterations

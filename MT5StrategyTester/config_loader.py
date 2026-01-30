@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 import yaml
 import os
+import getpass
 
 
 @dataclass
@@ -15,6 +16,10 @@ class MT5Config:
     """MetaTrader 5 paths and settings"""
     mt5_path: Path = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe")
     metaeditor_path: Path = Path(r"C:\Program Files\MetaTrader 5\metaeditor64.exe")
+    username: Optional[str] = None
+    login: Optional[str] = None
+    password: Optional[str] = None
+    server: Optional[str] = None
     experts_path: Path = Path(r"C:\Users\{username}\AppData\Roaming\MetaQuotes\Terminal\{terminal_id}\MQL5\Experts")
     reports_path: Path = Path(r"C:\Users\{username}\AppData\Roaming\MetaQuotes\Terminal\{terminal_id}\reports")
     tester_ini_path: Path = Path(r"C:\Users\{username}\AppData\Roaming\MetaQuotes\Terminal\{terminal_id}\tester")
@@ -37,9 +42,11 @@ class BacktestConfig:
     deposit: float = 100000.0
     currency: str = "USD"
     leverage: int = 100
+    delays: int = 0  # Execution delays in milliseconds (0=ideal, 100=realistic)
     model: int = 1
     optimization: int = 0
     visual: bool = False
+    report_format: str = "xml"
 
 
 @dataclass
@@ -113,9 +120,16 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
             # Load MT5 config
             if 'mt5' in data:
                 mt5_data = data['mt5']
+                login_env = os.getenv("MT5_LOGIN")
+                password_env = os.getenv("MT5_PASSWORD")
+                server_env = os.getenv("MT5_SERVER")
                 config.mt5 = MT5Config(
                     mt5_path=Path(mt5_data.get('mt5_path', config.mt5.mt5_path)),
                     metaeditor_path=Path(mt5_data.get('metaeditor_path', config.mt5.metaeditor_path)),
+                    username=mt5_data.get('username', config.mt5.username),
+                    login=login_env or mt5_data.get('login', config.mt5.login),
+                    password=password_env or mt5_data.get('password', config.mt5.password),
+                    server=server_env or mt5_data.get('server', config.mt5.server),
                     experts_path=Path(mt5_data.get('experts_path', config.mt5.experts_path)),
                     reports_path=Path(mt5_data.get('reports_path', config.mt5.reports_path)),
                     tester_ini_path=Path(mt5_data.get('tester_ini_path', config.mt5.tester_ini_path)),
@@ -133,9 +147,11 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
                     deposit=bt_data.get('deposit', config.backtest.deposit),
                     currency=bt_data.get('currency', config.backtest.currency),
                     leverage=bt_data.get('leverage', config.backtest.leverage),
+                    delays=bt_data.get('delays', config.backtest.delays),
                     model=bt_data.get('model', config.backtest.model),
                     optimization=bt_data.get('optimization', config.backtest.optimization),
-                    visual=bt_data.get('visual', config.backtest.visual)
+                    visual=bt_data.get('visual', config.backtest.visual),
+                    report_format=bt_data.get('report_format', config.backtest.report_format)
                 )
 
             # Load Success criteria
@@ -172,6 +188,21 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
                     temperature=crew_data.get('temperature', config.crewai.temperature),
                     max_tokens=crew_data.get('max_tokens', config.crewai.max_tokens)
                 )
+
+    # Resolve MT5 paths with actual username/terminal_id
+    username = config.mt5.username or getpass.getuser()
+    config.mt5.resolve_paths(username)
+    print(
+        "[MT5] resolved paths: "
+        f"experts_path={config.mt5.experts_path} "
+        f"reports_path={config.mt5.reports_path} "
+        f"tester_ini_path={config.mt5.tester_ini_path}"
+    )
+    print(
+        "[MT5] backtest config: "
+        f"symbol={config.backtest.symbol} period={config.backtest.period} "
+        f"from={config.backtest.from_date} to={config.backtest.to_date}"
+    )
 
     # Trigger post-init to create directories
     config.__post_init__()

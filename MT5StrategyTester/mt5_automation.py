@@ -5,7 +5,7 @@ Handles:
 - Compiling MQ5 files using MetaEditor
 - Generating tester INI configuration
 - Running backtests via MT5 command line
-- Parsing XML report results
+- Parsing XML and HTM report results
 """
 import subprocess
 import xml.etree.ElementTree as ET
@@ -15,6 +15,7 @@ from typing import Optional, Dict, Any
 import shutil
 import time
 import re
+from html.parser import HTMLParser
 
 from config_loader import MT5Config, BacktestConfig, AppConfig, load_config
 from models import (
@@ -42,7 +43,18 @@ class MT5Automation:
             return False, f"File not found: {mq5_file}"
         
         # Copy to MT5 Experts folder if not already there
-        target_path = self.mt5.experts_path / mq5_file.name
+        if not self.mt5.experts_path.exists():
+            return False, f"MT5 Experts path does not exist: {self.mt5.experts_path}"
+
+        strategy_dir_name = mq5_file.parent.name
+        target_dir = self.mt5.experts_path / strategy_dir_name
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / mq5_file.name
+
+        print(
+            f"[MT5] compile_strategy: mq5_file={mq5_file} "
+            f"-> target_path={target_path}"
+        )
         if mq5_file != target_path:
             shutil.copy2(mq5_file, target_path)
         
@@ -81,6 +93,7 @@ class MT5Automation:
     def generate_tester_ini(
         self, 
         strategy_name: str,
+        expert_name: Optional[str] = None,
         output_path: Optional[Path] = None,
         custom_params: Optional[Dict[str, Any]] = None
     ) -> Path:
@@ -102,26 +115,54 @@ class MT5Automation:
                     setattr(params, key, value)
         
         report_name = f"{strategy_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        report_path = self.mt5.reports_path / f"{report_name}.xml"
+        report_format = (self.backtest.report_format or "xml").lower()
+        if report_format not in {"xml", "htm", "html"}:
+            report_format = "xml"
+        # MT5 appends its own extension (.htm) to the Report path, so we use the base name
+        # without extension in the INI file. The actual report will be at report_base_path + ".htm"
+        report_base_path = self.mt5.reports_path / report_name
+        report_base_path.parent.mkdir(parents=True, exist_ok=True)
+        # Expected actual report path (MT5 adds .htm extension)
+        report_path = Path(str(report_base_path) + ".htm")
         
+        login = (self.mt5.login or "").strip()
+        password = (self.mt5.password or "").strip()
+        server = (self.mt5.server or "").strip()
+
+        expert_name = expert_name or strategy_name
+
         # INI content for Strategy Tester
+        # Note: Report= uses base path without extension; MT5 will append .htm
         ini_content = f"""[Tester]
-Expert={strategy_name}
+Expert={expert_name}
 Symbol={params.symbol}
 Period={params.period}
 Deposit={params.deposit}
 Currency={params.currency}
 Leverage={params.leverage}
+ExecutionMode={params.delays}
 Model={params.model}
 Optimization={params.optimization}
 FromDate={params.from_date}
 ToDate={params.to_date}
-Report={report_path}
+Report=\\reports\\{report_name}.htm
 ReplaceReport=1
 UseLocal=1
 Visual={1 if params.visual else 0}
 ShutdownTerminal=1
 """
+
+        if login and password and server:
+            ini_content += (
+                f"Login={login}\n"
+                f"Password={password}\n"
+                f"Server={server}\n"
+            )
+        else:
+            print(
+                "[MT5] tester.ini missing Login/Password/Server; "
+                "MT5 may exit without running tester."
+            )
         
         # Write INI file
         if output_path is None:
@@ -136,7 +177,8 @@ ShutdownTerminal=1
         self, 
         strategy_name: str,
         wait_timeout: int = 300,
-        custom_params: Optional[Dict[str, Any]] = None
+        custom_params: Optional[Dict[str, Any]] = None,
+        expert_name: Optional[str] = None
     ) -> tuple[bool, Optional[Path], str]:
         """
         Run a backtest in MT5 Strategy Tester
@@ -151,31 +193,96 @@ ShutdownTerminal=1
         """
         # Generate INI configuration
         ini_path, report_path = self.generate_tester_ini(
-            strategy_name, 
+            strategy_name,
+            expert_name=expert_name,
             custom_params=custom_params
         )
+        
+        print(
+            f"[MT5] run_backtest: ini_path={ini_path} report_path={report_path} "
+            f"exists(ini)={ini_path.exists()} exists(report)={report_path.exists()}"
+        )
+        if ini_path.exists():
+            try:
+                ini_size = ini_path.stat().st_size
+            except OSError:
+                ini_size = -1
+            print(f"[MT5] tester.ini size={ini_size} bytes")
         
         # Run MT5 with tester config
         cmd = [
             str(self.mt5.mt5_path),
             f"/config:{ini_path}"
         ]
+        print(f"[MT5] launch cmd: {' '.join(cmd)}")
         
         try:
             # Start MT5 process
             process = subprocess.Popen(cmd)
+            print(f"[MT5] process started pid={process.pid}")
             
             # Wait for report file to appear (indicates completion)
             start_time = time.time()
+            last_report_size = None
+            early_exit_logged = False
             while time.time() - start_time < wait_timeout:
-                if report_path.exists():
+                poll = process.poll()
+                if poll is not None and not early_exit_logged:
+                    early_exit_logged = True
+                    print(
+                        f"[MT5] process exited with code={poll}; "
+                        "waiting for report until timeout"
+                    )
+                
+                # MT5 generates .htm reports; check for the expected path
+                # report_path is already set to base_path + ".htm"
+                candidate_reports = [
+                    report_path,                          # Expected: base.htm
+                    report_path.with_suffix('.html'),     # Alternative: base.html
+                ]
+                
+                # Also check Tester folder for reports
+                tester_folder = self.mt5.tester_ini_path
+                tester_report_candidates = [
+                    tester_folder / f"{report_path.stem}.htm",
+                    tester_folder / f"{report_path.stem}.html",
+                ]
+                candidate_reports.extend(tester_report_candidates)
+                
+                # Debug: List all files in reports directory and Tester folder
+                if not early_exit_logged or (time.time() - start_time) % 30 < 5:
+                    try:
+                        reports_dir = report_path.parent
+                        if reports_dir.exists():
+                            existing_files = list(reports_dir.glob("*.htm*"))
+                            if existing_files:
+                                print(f"[MT5] DEBUG: HTM files in {reports_dir}: {[f.name for f in existing_files[:10]]}")
+                        if tester_folder.exists():
+                            tester_files = list(tester_folder.glob("*.htm*"))
+                            if tester_files:
+                                print(f"[MT5] DEBUG: HTM files in {tester_folder}: {[f.name for f in tester_files[:10]]}")
+                    except Exception as e:
+                        print(f"[MT5] DEBUG: Error listing dirs: {e}")
+
+                for candidate in candidate_reports:
+                    if not candidate.exists():
+                        continue
                     # Give it a moment to finish writing
                     time.sleep(2)
-                    if report_path.stat().st_size > 0:
-                        return True, report_path, "Backtest completed successfully"
+                    try:
+                        report_size = candidate.stat().st_size
+                    except OSError:
+                        report_size = -1
+                    if report_size != last_report_size:
+                        print(f"[MT5] report file found: {candidate} size={report_size} bytes")
+                        last_report_size = report_size
+                    if report_size > 0:
+                        # HTM/HTML reports are valid - return success
+                        return True, candidate, "Backtest completed successfully"
                 time.sleep(5)
             
             # Timeout - kill process if still running
+            print(f"[MT5] timeout after {wait_timeout}s, terminating process")
             process.terminate()
             return False, None, f"Backtest timed out after {wait_timeout} seconds"
             
@@ -384,10 +491,392 @@ ShutdownTerminal=1
         
         return params
     
+    def parse_htm_report(self, report_path: Path) -> Optional[BacktestResult]:
+        """
+        Parse MT5 HTM report into BacktestResult
+        
+        Args:
+            report_path: Path to HTM report file
+            
+        Returns:
+            BacktestResult object or None if parsing fails
+        """
+        if not report_path.exists():
+            return None
+            
+        try:
+            # Try different encodings - MT5 often uses UTF-16
+            content = None
+            for encoding in ['utf-16', 'utf-16-le', 'utf-8', 'latin-1']:
+                try:
+                    content = report_path.read_text(encoding=encoding)
+                    # Check if content looks valid (has HTML tags)
+                    if '<html>' in content.lower() or '<table' in content.lower():
+                        break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+            
+            if content is None:
+                print(f"Could not decode HTM file with any supported encoding")
+                return None
+            
+            # Parse the HTML content
+            data = self._extract_htm_data(content)
+            
+            if not data:
+                print("Failed to extract data from HTM report")
+                return None
+            
+            # Build BacktestResult from extracted data
+            performance = PerformanceMetrics(
+                net_profit=data.get('total_net_profit', 0.0),
+                gross_profit=data.get('gross_profit', 0.0),
+                gross_loss=data.get('gross_loss', 0.0),
+                profit_factor=data.get('profit_factor', 0.0),
+                expected_payoff=data.get('expected_payoff', 0.0),
+                sharpe_ratio=data.get('sharpe_ratio', 0.0),
+                recovery_factor=data.get('recovery_factor', 0.0),
+            )
+            
+            # Calculate return percentages
+            initial_deposit = data.get('initial_deposit', self.backtest.deposit)
+            if initial_deposit > 0 and performance.net_profit != 0:
+                performance.total_return_pct = (performance.net_profit / initial_deposit) * 100
+            
+            trades = TradeStats(
+                total_trades=data.get('total_trades', 0),
+                winning_trades=data.get('profit_trades', 0),
+                losing_trades=data.get('loss_trades', 0),
+                avg_win=data.get('average_profit_trade', 0.0),
+                avg_loss=data.get('average_loss_trade', 0.0),
+                largest_win=data.get('largest_profit_trade', 0.0),
+                largest_loss=data.get('largest_loss_trade', 0.0),
+                consecutive_wins=data.get('max_consecutive_wins', 0),
+                consecutive_losses=data.get('max_consecutive_losses', 0),
+            )
+            
+            # Calculate win rate
+            if trades.total_trades > 0:
+                trades.win_rate = (trades.winning_trades / trades.total_trades) * 100
+            
+            drawdown = DrawdownStats(
+                max_drawdown_abs=data.get('balance_drawdown_absolute', 0.0),
+                max_drawdown_pct=data.get('balance_drawdown_maximal_pct', 0.0),
+                avg_drawdown_pct=data.get('balance_drawdown_relative_pct', 0.0),
+            )
+            
+            # Also check equity drawdown if balance drawdown not available
+            if drawdown.max_drawdown_abs == 0:
+                drawdown.max_drawdown_abs = data.get('equity_drawdown_absolute', 0.0)
+            if drawdown.max_drawdown_pct == 0:
+                drawdown.max_drawdown_pct = data.get('equity_drawdown_maximal_pct', 0.0)
+            
+            final_balance = initial_deposit + performance.net_profit
+            
+            return BacktestResult(
+                strategy_name=data.get('expert', 'Unknown'),
+                symbol=data.get('symbol', self.backtest.symbol),
+                timeframe=data.get('period', self.backtest.period),
+                from_date=data.get('from_date', self.backtest.from_date),
+                to_date=data.get('to_date', self.backtest.to_date),
+                initial_deposit=initial_deposit,
+                final_balance=final_balance,
+                performance=performance,
+                trades=trades,
+                drawdown=drawdown,
+                raw_xml=content,  # Store raw HTM content
+                parameters=data.get('inputs', {})
+            )
+            
+        except Exception as e:
+            print(f"Error parsing HTM report: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def _extract_htm_data(self, content: str) -> Dict[str, Any]:
+        """
+        Extract data from MT5 HTM report content
+        
+        Args:
+            content: HTML content string
+            
+        Returns:
+            Dictionary with extracted values
+        """
+        data = {}
+        
+        # Clean up the content - remove extra whitespace between characters
+        # MT5 UTF-16 files sometimes have spaces between chars when read incorrectly
+        # But if we read with correct encoding, this shouldn't be needed
+        
+        # Helper function to extract value after a label
+        def extract_value(label: str, pattern: str = r'<b>([^<]+)</b>') -> Optional[str]:
+            """Extract value from HTML after a label"""
+            # Look for the label followed by the value in bold
+            label_pattern = re.escape(label) + r'[^<]*</td>\s*<td[^>]*>\s*' + pattern
+            match = re.search(label_pattern, content, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1).strip()
+            return None
+        
+        def parse_number(value: Optional[str]) -> float:
+            """Parse a number from string, handling various formats"""
+            if value is None:
+                return 0.0
+            # Remove spaces, replace unicode minus
+            value = value.replace(' ', '').replace('\xa0', '').replace('−', '-')
+            # Handle percentage in parentheses like "1 958.19 (1.96%)"
+            if '(' in value:
+                value = value.split('(')[0].strip()
+            try:
+                return float(value)
+            except ValueError:
+                return 0.0
+        
+        def parse_percentage(value: Optional[str]) -> float:
+            """Parse percentage value, extracting from formats like '1.96% (1 958.19)'"""
+            if value is None:
+                return 0.0
+            # Look for percentage pattern
+            match = re.search(r'([\d.,]+)\s*%', value.replace(' ', ''))
+            if match:
+                try:
+                    return float(match.group(1).replace(',', '.'))
+                except ValueError:
+                    pass
+            return 0.0
+        
+        # Extract Settings section
+        # Expert name
+        match = re.search(r'Expert:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['expert'] = match.group(1).strip()
+        
+        # Symbol
+        match = re.search(r'Symbol:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['symbol'] = match.group(1).strip()
+        
+        # Period (includes date range)
+        match = re.search(r'Period:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            period_str = match.group(1).strip()
+            data['period'] = period_str
+            # Extract date range if present: "M15 (2025.12.01 - 2025.12.31)"
+            date_match = re.search(r'\((\d{4}\.\d{2}\.\d{2})\s*-\s*(\d{4}\.\d{2}\.\d{2})\)', period_str)
+            if date_match:
+                data['from_date'] = date_match.group(1)
+                data['to_date'] = date_match.group(2)
+        
+        # Initial Deposit
+        match = re.search(r'Initial\s+Deposit:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['initial_deposit'] = parse_number(match.group(1))
+        
+        # Leverage
+        match = re.search(r'Leverage:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['leverage'] = match.group(1).strip()
+        
+        # Extract Results section
+        # Total Net Profit
+        match = re.search(r'Total\s+Net\s+Profit:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['total_net_profit'] = parse_number(match.group(1))
+        
+        # Gross Profit
+        match = re.search(r'Gross\s+Profit:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['gross_profit'] = parse_number(match.group(1))
+        
+        # Gross Loss
+        match = re.search(r'Gross\s+Loss:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['gross_loss'] = parse_number(match.group(1))
+        
+        # Profit Factor
+        match = re.search(r'Profit\s+Factor:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['profit_factor'] = parse_number(match.group(1))
+        
+        # Expected Payoff
+        match = re.search(r'Expected\s+Payoff:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['expected_payoff'] = parse_number(match.group(1))
+        
+        # Recovery Factor
+        match = re.search(r'Recovery\s+Factor:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['recovery_factor'] = parse_number(match.group(1))
+        
+        # Sharpe Ratio
+        match = re.search(r'Sharpe\s+Ratio:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['sharpe_ratio'] = parse_number(match.group(1))
+        
+        # Drawdown stats
+        # Balance Drawdown Absolute
+        match = re.search(r'Balance\s+Drawdown\s+Absolute:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['balance_drawdown_absolute'] = parse_number(match.group(1))
+        
+        # Balance Drawdown Maximal (with percentage)
+        match = re.search(r'Balance\s+Drawdown\s+Maximal:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            data['balance_drawdown_maximal'] = parse_number(value)
+            data['balance_drawdown_maximal_pct'] = parse_percentage(value)
+        
+        # Balance Drawdown Relative
+        match = re.search(r'Balance\s+Drawdown\s+Relative:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            data['balance_drawdown_relative_pct'] = parse_percentage(value)
+        
+        # Equity Drawdown Absolute
+        match = re.search(r'Equity\s+Drawdown\s+Absolute:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['equity_drawdown_absolute'] = parse_number(match.group(1))
+        
+        # Equity Drawdown Maximal
+        match = re.search(r'Equity\s+Drawdown\s+Maximal:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            data['equity_drawdown_maximal'] = parse_number(value)
+            data['equity_drawdown_maximal_pct'] = parse_percentage(value)
+        
+        # Trade statistics
+        # Total Trades
+        match = re.search(r'Total\s+Trades:\s*</td>\s*<td[^>]*>\s*<b>(\d+)</b>', content, re.IGNORECASE)
+        if match:
+            data['total_trades'] = int(match.group(1))
+        
+        # Total Deals
+        match = re.search(r'Total\s+Deals:\s*</td>\s*<td[^>]*>\s*<b>(\d+)</b>', content, re.IGNORECASE)
+        if match:
+            data['total_deals'] = int(match.group(1))
+        
+        # Profit Trades (% of total)
+        match = re.search(r'Profit\s+Trades\s*\([^)]*\):\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            # Format: "3 (30.00%)"
+            num_match = re.match(r'(\d+)', value.replace(' ', ''))
+            if num_match:
+                data['profit_trades'] = int(num_match.group(1))
+        
+        # Loss Trades (% of total)
+        match = re.search(r'Loss\s+Trades\s*\([^)]*\):\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            num_match = re.match(r'(\d+)', value.replace(' ', ''))
+            if num_match:
+                data['loss_trades'] = int(num_match.group(1))
+        
+        # Largest profit trade
+        match = re.search(r'Largest\s+profit\s+trade:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['largest_profit_trade'] = parse_number(match.group(1))
+        
+        # Largest loss trade
+        match = re.search(r'Largest\s+loss\s+trade:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['largest_loss_trade'] = parse_number(match.group(1))
+        
+        # Average profit trade
+        match = re.search(r'Average\s+profit\s+trade:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['average_profit_trade'] = parse_number(match.group(1))
+        
+        # Average loss trade
+        match = re.search(r'Average\s+loss\s+trade:\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            data['average_loss_trade'] = parse_number(match.group(1))
+        
+        # Maximum consecutive wins
+        match = re.search(r'Maximum\s+consecutive\s+wins\s*\([^)]*\):\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            num_match = re.match(r'(\d+)', value.replace(' ', ''))
+            if num_match:
+                data['max_consecutive_wins'] = int(num_match.group(1))
+        
+        # Maximum consecutive losses
+        match = re.search(r'Maximum\s+consecutive\s+losses\s*\([^)]*\):\s*</td>\s*<td[^>]*>\s*<b>([^<]+)</b>', content, re.IGNORECASE)
+        if match:
+            value = match.group(1)
+            num_match = re.match(r'(\d+)', value.replace(' ', ''))
+            if num_match:
+                data['max_consecutive_losses'] = int(num_match.group(1))
+        
+        # Extract input parameters
+        inputs = {}
+        # Look for input parameters in the Inputs section
+        # Format: parameter=value in bold tags
+        input_matches = re.findall(r'<b>(\w+)=([^<]+)</b>', content)
+        for name, value in input_matches:
+            # Skip separator lines (just "=")
+            if name and value and value.strip() != '':
+                # Try to convert to appropriate type
+                try:
+                    if '.' in value:
+                        inputs[name] = float(value)
+                    elif value.lower() in ('true', 'false'):
+                        inputs[name] = value.lower() == 'true'
+                    else:
+                        inputs[name] = int(value)
+                except ValueError:
+                    inputs[name] = value.strip()
+        
+        data['inputs'] = inputs
+        
+        return data
+    
+    def parse_report(self, report_path: Path) -> Optional[BacktestResult]:
+        """
+        Parse MT5 report file (auto-detects XML or HTM format)
+        
+        Args:
+            report_path: Path to report file
+            
+        Returns:
+            BacktestResult object or None if parsing fails
+        """
+        if not report_path.exists():
+            return None
+        
+        suffix = report_path.suffix.lower()
+        
+        # Determine format based on extension
+        if suffix in ['.htm', '.html']:
+            return self.parse_htm_report(report_path)
+        elif suffix == '.xml':
+            return self.parse_xml_report(report_path)
+        else:
+            # Try to detect format from content
+            try:
+                # Read first few bytes to detect format
+                with open(report_path, 'rb') as f:
+                    header = f.read(100)
+                
+                # Check for XML declaration or HTML doctype
+                if b'<?xml' in header:
+                    return self.parse_xml_report(report_path)
+                elif b'<!DOCTYPE' in header or b'<html' in header.lower() or b'< ! D O C T Y P E' in header:
+                    return self.parse_htm_report(report_path)
+                else:
+                    # Default to HTM for MT5 reports
+                    return self.parse_htm_report(report_path)
+            except Exception as e:
+                print(f"Error detecting report format: {e}")
+                return None
+    
     def full_backtest_cycle(
         self, 
         mq5_file: Path,
-        custom_params: Optional[Dict[str, Any]] = None
+        custom_params: Optional[Dict[str, Any]] = None,
+        expert_name: Optional[str] = None
     ) -> tuple[bool, Optional[BacktestResult], str]:
         """
         Run complete backtest cycle: compile -> test -> parse results
@@ -400,6 +889,12 @@ ShutdownTerminal=1
             tuple: (success, BacktestResult or None, message)
         """
         strategy_name = mq5_file.stem
+        if not expert_name:
+            parent_name = mq5_file.parent.name
+            if parent_name:
+                expert_name = f"{parent_name}\\{strategy_name}"
+            else:
+                expert_name = strategy_name
         
         # Step 1: Compile
         print(f"Compiling {strategy_name}...")
@@ -410,15 +905,16 @@ ShutdownTerminal=1
         # Step 2: Run backtest
         print(f"Running backtest for {strategy_name}...")
         success, report_path, msg = self.run_backtest(
-            strategy_name, 
-            custom_params=custom_params
+            strategy_name,
+            custom_params=custom_params,
+            expert_name=expert_name
         )
         if not success:
             return False, None, f"Backtest failed: {msg}"
         
         # Step 3: Parse results
         print(f"Parsing results for {strategy_name}...")
-        result = self.parse_xml_report(report_path)
+        result = self.parse_report(report_path)
         if result is None:
             return False, None, "Failed to parse backtest results"
         

@@ -4,6 +4,7 @@
 mt5:
   mt5_path: "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
   metaeditor_path: "C:\\Program Files\\MetaTrader 5\\metaeditor64.exe"
+  username: "Administrator"  # Windows username for MT5 data paths
   experts_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\MQL5\\Experts"
   reports_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\reports"
   tester_ini_path: "C:\\Users\\{username}\\AppData\\Roaming\\MetaQuotes\\Terminal\\{terminal_id}\\tester"
@@ -12,13 +13,14 @@ mt5:
 
 # Backtest parameters
 backtest:
-  symbol: "GBPUSD"
+  symbol: "GBPUSD.r"
   period: "M15"  # M1, M5, M15, M30, H1, H4, D1, W1, MN
-  from_date: "2025.01.01"
+  from_date: "2025.12.01"
   to_date: "2025.12.31"
   deposit: 100000.0
   currency: "USD"
-  leverage: 100
+  leverage: 100  # Account leverage (e.g., 100 = 1:100)
+  delays: 18  # Execution delays in ms (0=ideal, 100=realistic broker delay)
   model: 4  # 0=Every tick, 1=1 minute OHLC, 2=Open prices only, 3=Math calculations, 4=Every tick based on real ticks
   optimization: 0  # 0=Disabled, 1=Slow complete, 2=Fast genetic
   visual: false
