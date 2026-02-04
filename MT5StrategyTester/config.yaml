@@ -42,9 +42,8 @@ optimization:
   results_csv: "./results/backtest_results.csv"
   modified_strategies_folder: "./strategies/modified"
 
-# CrewAI agent settings
-crewai:
-  anthropic_api_key: ""  # Set via environment variable ANTHROPIC_API_KEY
-  model: "claude-sonnet-4-5-20250929"
+# Anthropic API settings
+anthropic:
+  model: "claude-sonnet-4-20250514"
   temperature: 0.3
   max_tokens: 16000

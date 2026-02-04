@@ -1,11 +1,6 @@
 # MT5 Strategy Tester Dependencies
 
-# CrewAI for agent orchestration
-crewai>=0.11.0
-crewai-tools>=0.0.1
-
 # Anthropic for Claude API
-langchain-anthropic>=0.3.0
 anthropic>=0.40.0
 
 # Utilities

@@ -872,21 +872,107 @@ ShutdownTerminal=1
                 print(f"Error detecting report format: {e}")
                 return None
     
+    def get_strategy_results_folder(self, strategy_path: Path) -> Path:
+        """
+        Get the results folder for a strategy.
+        
+        Args:
+            strategy_path: Path to the MQ5 strategy file
+            
+        Returns:
+            Path to the results folder for this strategy
+            
+        Examples:
+            - strategies/LondonBreakoutEA/EA.mq5 -> strategies/LondonBreakoutEA/results/
+            - strategies/SampleStrategy.mq5 -> strategies/results/
+        """
+        # Get the parent directory of the strategy file
+        strategy_dir = strategy_path.parent
+        
+        # Check if the strategy is in a dedicated subfolder
+        # (i.e., not directly in the strategies folder)
+        if strategy_dir.name.lower() != 'strategies':
+            # Strategy is in a subfolder like strategies/LondonBreakoutEA/
+            results_folder = strategy_dir / 'results'
+        else:
+            # Strategy is directly in strategies folder
+            results_folder = strategy_dir / 'results'
+        
+        return results_folder
+    
+    def copy_report_to_strategy_folder(
+        self,
+        report_path: Path,
+        strategy_path: Path
+    ) -> Optional[Path]:
+        """
+        Copy HTM report to the strategy's results folder.
+        
+        Args:
+            report_path: Path to the HTM report file
+            strategy_path: Path to the original MQ5 strategy file
+            
+        Returns:
+            Path to the copied report, or None if copy failed
+        """
+        try:
+            # Validate inputs
+            if not report_path.exists():
+                print(f"[MT5] Report file not found: {report_path}")
+                return None
+            
+            if not strategy_path.exists():
+                print(f"[MT5] Strategy file not found: {strategy_path}")
+                return None
+            
+            # Get the results folder for this strategy
+            results_folder = self.get_strategy_results_folder(strategy_path)
+            
+            # Create results folder if it doesn't exist
+            results_folder.mkdir(parents=True, exist_ok=True)
+            
+            # Generate timestamped filename: {strategy_name}_{YYYYMMDD_HHMMSS}.htm
+            strategy_name = strategy_path.stem
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            new_filename = f"{strategy_name}_{timestamp}.htm"
+            
+            # Destination path
+            dest_path = results_folder / new_filename
+            
+            # Copy the report file (preserves metadata)
+            shutil.copy2(report_path, dest_path)
+            
+            print(f"[MT5] Report copied to: {dest_path}")
+            return dest_path
+            
+        except PermissionError as e:
+            print(f"[MT5] Permission error copying report: {e}")
+            return None
+        except OSError as e:
+            print(f"[MT5] OS error copying report: {e}")
+            return None
+        except Exception as e:
+            print(f"[MT5] Unexpected error copying report: {e}")
+            return None
+    
     def full_backtest_cycle(
-        self, 
+        self,
         mq5_file: Path,
         custom_params: Optional[Dict[str, Any]] = None,
-        expert_name: Optional[str] = None
-    ) -> tuple[bool, Optional[BacktestResult], str]:
+        expert_name: Optional[str] = None,
+        copy_report: bool = True
+    ) -> tuple[bool, Optional[BacktestResult], Optional[Path], str]:
         """
-        Run complete backtest cycle: compile -> test -> parse results
+        Run complete backtest cycle: compile -> test -> parse results -> copy report
         
         Args:
             mq5_file: Path to MQ5 source file
             custom_params: Override backtest parameters
+            expert_name: Optional custom expert name for MT5
+            copy_report: Whether to copy the report to strategy's results folder
             
         Returns:
-            tuple: (success, BacktestResult or None, message)
+            tuple: (success, BacktestResult or None, report_path or None, message)
         """
         strategy_name = mq5_file.stem
         if not expert_name:
@@ -900,7 +986,7 @@ ShutdownTerminal=1
         print(f"Compiling {strategy_name}...")
         success, msg = self.compile_strategy(mq5_file)
         if not success:
-            return False, None, f"Compilation failed: {msg}"
+            return False, None, None, f"Compilation failed: {msg}"
         
         # Step 2: Run backtest
         print(f"Running backtest for {strategy_name}...")
@@ -910,15 +996,25 @@ ShutdownTerminal=1
             expert_name=expert_name
         )
         if not success:
-            return False, None, f"Backtest failed: {msg}"
+            return False, None, None, f"Backtest failed: {msg}"
         
         # Step 3: Parse results
         print(f"Parsing results for {strategy_name}...")
         result = self.parse_report(report_path)
         if result is None:
-            return False, None, "Failed to parse backtest results"
+            return False, None, report_path, "Failed to parse backtest results"
         
-        return True, result, "Backtest completed successfully"
+        # Step 4: Copy report to strategy folder (optional)
+        copied_report_path = report_path
+        if copy_report and report_path:
+            print(f"Copying report to strategy folder...")
+            copied_path = self.copy_report_to_strategy_folder(report_path, mq5_file)
+            if copied_path:
+                copied_report_path = copied_path
+            else:
+                print(f"[MT5] Warning: Failed to copy report, using original path")
+        
+        return True, result, copied_report_path, "Backtest completed successfully"
 
 
 class MockMT5Automation(MT5Automation):

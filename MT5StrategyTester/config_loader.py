@@ -71,12 +71,12 @@ class OptimizationConfig:
 
 
 @dataclass
-class CrewAIConfig:
-    """CrewAI agent settings"""
-    anthropic_api_key: str = ""
+class AnthropicConfig:
+    """Anthropic API settings"""
+    api_key: str = ""
     model: str = "claude-sonnet-4-20250514"
     temperature: float = 0.3
-    max_tokens: int = 8000
+    max_tokens: int = 16000
 
 
 @dataclass
@@ -86,7 +86,7 @@ class AppConfig:
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
     success: SuccessCriteria = field(default_factory=SuccessCriteria)
     optimization: OptimizationConfig = field(default_factory=OptimizationConfig)
-    crewai: CrewAIConfig = field(default_factory=CrewAIConfig)
+    anthropic: AnthropicConfig = field(default_factory=AnthropicConfig)
 
     def __post_init__(self):
         # Create necessary directories
@@ -177,16 +177,16 @@ def load_config(config_path: Optional[Path] = None) -> AppConfig:
                     modified_strategies_folder=Path(opt_data.get('modified_strategies_folder', config.optimization.modified_strategies_folder))
                 )
 
-            # Load CrewAI config
-            if 'crewai' in data:
-                crew_data = data['crewai']
+            # Load Anthropic config
+            if 'anthropic' in data:
+                anthropic_data = data['anthropic']
                 # Check environment variable first for API key
-                api_key = os.getenv("ANTHROPIC_API_KEY", crew_data.get('anthropic_api_key', config.crewai.anthropic_api_key))
-                config.crewai = CrewAIConfig(
-                    anthropic_api_key=api_key,
-                    model=crew_data.get('model', config.crewai.model),
-                    temperature=crew_data.get('temperature', config.crewai.temperature),
-                    max_tokens=crew_data.get('max_tokens', config.crewai.max_tokens)
+                api_key = os.getenv("ANTHROPIC_API_KEY", anthropic_data.get('api_key', config.anthropic.api_key))
+                config.anthropic = AnthropicConfig(
+                    api_key=api_key,
+                    model=anthropic_data.get('model', config.anthropic.model),
+                    temperature=anthropic_data.get('temperature', config.anthropic.temperature),
+                    max_tokens=anthropic_data.get('max_tokens', config.anthropic.max_tokens)
                 )
 
     # Resolve MT5 paths with actual username/terminal_id
